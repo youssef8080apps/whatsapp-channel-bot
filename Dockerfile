@@ -7,11 +7,11 @@ RUN npm install
 
 COPY . .
 
-# تأكد من وجود فولدر data
-RUN mkdir -p /data
-RUN chmod -R 777 /data
+# Create data directory inside /app
+RUN mkdir -p /app/data
+RUN chmod -R 777 /app/data
 
-ENV DATA_DIR=/data
+ENV DATA_DIR=/app/data
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 
 EXPOSE 3000
