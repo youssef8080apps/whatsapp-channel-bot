@@ -21,18 +21,19 @@ async function startBrowser() {
 
   console.log("🚀 Launching Chrome (Headless)…");
 
-  browser = await puppeteer.launch({
-    headless: "new", // ✅ مهم جدًا
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-software-rasterizer",
-      "--disable-features=VizDisplayCompositor",
-      "--window-size=1280,800"
-    ]
-  });
+browser = await puppeteer.launch({
+  headless: true,
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--window-size=1280,800"
+  ]
+});
+
 
   page = await browser.newPage();
 
