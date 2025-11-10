@@ -5,7 +5,6 @@ import path from "path";
 
 const CHANNEL_URL = "https://web.whatsapp.com/channel/0029Vb1thBVEQIavlDI5Tw0a";
 
-// ✅ استخدم نفس المكان اللي في Dockerfile
 const DATA_DIR = process.env.DATA_DIR || "/app/data";
 const SESSION_FILE = path.join(DATA_DIR, "session.json");
 const QR_FILE = path.join(DATA_DIR, "qr.png");
@@ -20,11 +19,10 @@ async function ensureDataDir() {
 async function startBrowser() {
   await ensureDataDir();
 
-  console.log("🚀 Starting Chrome...");
+  console.log("🚀 Launching Chrome...");
 
   browser = await puppeteer.launch({
     headless: false,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -36,7 +34,7 @@ async function startBrowser() {
 
   page = await browser.newPage();
 
-  // ✅ Load session (if exists)
+  // Load session
   if (fs.existsSync(SESSION_FILE)) {
     const cookies = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));
     if (Array.isArray(cookies) && cookies.length) {
@@ -46,30 +44,28 @@ async function startBrowser() {
   }
 
   console.log("🔗 Opening WhatsApp Web...");
-
   await page.goto("https://web.whatsapp.com", { waitUntil: "networkidle2" });
 
-  // ✅ Capture QR
+  // Capture QR
   try {
     await page.waitForSelector("canvas", { timeout: 15000 });
     const canvas = await page.$("canvas");
     if (canvas) {
       await canvas.screenshot({ path: QR_FILE });
-      console.log("✅ QR captured to /app/data/qr.png");
+      console.log("✅ QR captured");
     }
-  } catch (_) {
-    console.log("✅ No QR needed, maybe already logged in.");
+  } catch {
+    console.log("✅ No QR — maybe logged in");
   }
 
-  // ✅ Wait for WA ready
+  // Wait for WA UI
   try {
     await page.waitForSelector("[data-testid='chat-list-search']", { timeout: 60000 });
-    console.log("✅ WhatsApp Connected!");
+    console.log("✅ WhatsApp Ready!");
   } catch {
-    console.log("⚠️ WhatsApp not fully ready.");
+    console.log("⚠️ WhatsApp not fully ready");
   }
 
-  // ✅ Save cookies
   const cookies = await page.cookies();
   fs.writeFileSync(SESSION_FILE, JSON.stringify(cookies, null, 2));
   console.log("✅ Session saved");
@@ -80,10 +76,10 @@ async function sendToChannel(message) {
 
   await page.goto(CHANNEL_URL, { waitUntil: "networkidle2" });
 
-  const editorSel = "[contenteditable='true'][data-tab='10'], [contenteditable='true']";
-  await page.waitForSelector(editorSel, { timeout: 20000 });
+  const editor = "[contenteditable='true']"; 
+  await page.waitForSelector(editor, { timeout: 20000 });
 
-  await page.type(editorSel, message);
+  await page.type(editor, message);
   await page.keyboard.press("Enter");
 
   console.log("✅ Message sent");
@@ -94,34 +90,24 @@ const app = express();
 app.use(express.json());
 
 app.get("/qr", (req, res) => {
-  if (fs.existsSync(QR_FILE)) {
-    res.setHeader("Content-Type", "image/png");
-    fs.createReadStream(QR_FILE).pipe(res);
-  } else {
-    res.status(404).json({ error: "QR not generated yet" });
-  }
-});
-
-app.get("/session", (req, res) => {
-  res.json({ loggedIn: fs.existsSync(SESSION_FILE) });
+  if (!fs.existsSync(QR_FILE)) return res.status(404).json({ error: "QR not available" });
+  res.setHeader("Content-Type", "image/png");
+  fs.createReadStream(QR_FILE).pipe(res);
 });
 
 app.post("/send", async (req, res) => {
   try {
     const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "text is required" });
+    if (!text) return res.status(400).json({ error: "text required" });
 
-    const ok = await sendToChannel(text);
-    return res.json({ status: "sent" });
+    await sendToChannel(text);
+    res.json({ status: "sent" });
   } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 });
 
-app.listen(3000, () => console.log("✅ API running on :3000"));
-
+app.listen(3000, () => console.log("✅ API on :3000"));
 startBrowser().catch(err => {
-  console.error("❌ Browser start error:", err);
-  process.exit(1);
+  console.error("❌ Chrome error:", err);
 });
