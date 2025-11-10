@@ -1,4 +1,4 @@
-FROM ghcr.io/puppeteer/puppeteer:latest
+FROM node:18
 
 WORKDIR /app
 
@@ -7,8 +7,6 @@ RUN npm install
 
 COPY . .
 
-RUN mkdir -p /app/data
-
 EXPOSE 3000
 
-CMD ["node", "bot.js"]
+CMD ["node", "index.js"]
