@@ -1,12 +1,16 @@
 import express from "express";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
 
 const CHANNEL_URL = "https://web.whatsapp.com/channel/0029Vb1thBVEQIavlDI5Tw0a";
-const DATA_DIR = "./data";
+
+const DATA_DIR = "/data";
 const SESSION_FILE = path.join(DATA_DIR, "session.json");
 const QR_FILE = path.join(DATA_DIR, "qr.png");
+
+// ✅ Chrome path on server
+const CHROME_PATH = "/usr/bin/google-chrome-stable";
 
 let browser;
 let page;
@@ -18,25 +22,42 @@ async function ensureDataDir() {
 async function startBrowser() {
   await ensureDataDir();
 
+  console.log("🚀 Starting Chrome...");
+
   browser = await puppeteer.launch({
-    headless: true,                       // شغال على السيرفر
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    headless: true,
+    executablePath: CHROME_PATH,
+    args: [
+      "--no-sandbox",
+      "--disable-gpu",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--disable-software-rasterizer",
+      "--no-first-run",
+      "--no-zygote",
+      "--single-process",
+      "--window-size=1920,1080"
+    ]
   });
+
   page = await browser.newPage();
 
-  // لو عندك كوكيز محفوظة من قبل
+  // ✅ Load saved session
   if (fs.existsSync(SESSION_FILE)) {
     const cookies = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));
     if (Array.isArray(cookies) && cookies.length) {
       await page.setCookie(...cookies);
+      console.log("✅ Session loaded");
     }
   }
 
+  console.log("🔗 Opening WhatsApp Web...");
+
   await page.goto("https://web.whatsapp.com", { waitUntil: "networkidle2" });
 
-  // لو مش لوج إن: هيبقى في QR
+  // ✅ Capture QR if needed
   try {
-    // لو لسه محتاج QR، خد لقطة للشاشة للكانڤاس
     await page.waitForSelector("canvas", { timeout: 15000 });
     const canvas = await page.$("canvas");
     if (canvas) {
@@ -44,17 +65,18 @@ async function startBrowser() {
       console.log("✅ QR captured to /data/qr.png");
     }
   } catch (_) {
-    // مفيش QR → غالبًا دخل
+    console.log("✅ No QR needed, probably already logged in.");
   }
 
-  // استنى لحد ما يبقى فيه محرك البحث بتاع الشات → دليل إن login تم
+  // ✅ Wait for WhatsApp to be ready
   try {
-    await page.waitForSelector("[data-testid='chat-list-search']", { timeout: 0 });
-  } catch (e) {
-    console.log("⚠️ لم يظهر شريط البحث، قد لا يكون تسجيل الدخول كاملاً بعد.");
+    await page.waitForSelector("[data-testid='chat-list-search']", { timeout: 60000 });
+    console.log("✅ WhatsApp Connected!");
+  } catch {
+    console.log("⚠️ WhatsApp not fully ready yet.");
   }
 
-  // احفظ الجلسة
+  // ✅ Save session
   const cookies = await page.cookies();
   fs.writeFileSync(SESSION_FILE, JSON.stringify(cookies, null, 2));
   console.log("✅ Session saved");
@@ -62,14 +84,19 @@ async function startBrowser() {
 
 async function sendToChannel(message) {
   if (!page) throw new Error("Browser not started");
+
+  console.log("📨 Navigating to channel...");
   await page.goto(CHANNEL_URL, { waitUntil: "networkidle2" });
 
-  // صندوق الكتابة في القنوات (واتساب بيغيّر selectors أحيانًا)
-  const editorSel = "[contenteditable='true']";
+  // ✅ Find writing input (WhatsApp changes this a lot)
+  const editorSel = "[contenteditable='true'][data-tab='10'], [contenteditable='true']";
+
   await page.waitForSelector(editorSel, { timeout: 20000 });
 
   await page.type(editorSel, message);
   await page.keyboard.press("Enter");
+
+  console.log("✅ Message sent to channel");
 
   return true;
 }
@@ -77,22 +104,22 @@ async function sendToChannel(message) {
 const app = express();
 app.use(express.json());
 
-// استرجاع QR كصورة
+// ✅ Return QR file
 app.get("/qr", (req, res) => {
   if (fs.existsSync(QR_FILE)) {
     res.setHeader("Content-Type", "image/png");
     fs.createReadStream(QR_FILE).pipe(res);
   } else {
-    res.status(404).json({ error: "QR not found yet. Open WhatsApp Web page first." });
+    res.status(404).json({ error: "QR not generated yet" });
   }
 });
 
-// حالة الجلسة
+// ✅ Session status
 app.get("/session", (req, res) => {
   res.json({ loggedIn: fs.existsSync(SESSION_FILE) });
 });
 
-// نشر رسالة
+// ✅ Send message to WhatsApp Channel
 app.post("/send", async (req, res) => {
   try {
     const { text } = req.body;
@@ -100,7 +127,6 @@ app.post("/send", async (req, res) => {
 
     const ok = await sendToChannel(text);
     if (ok) return res.json({ status: "sent" });
-    return res.status(500).json({ error: "failed" });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: e.message });
