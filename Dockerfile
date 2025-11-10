@@ -1,4 +1,14 @@
-FROM ghcr.io/puppeteer/puppeteer:latest
+FROM node:20-slim
+
+# Install dependencies for Chromium
+RUN apt-get update && apt-get install -y \
+  chromium \
+  chromium-sandbox \
+  chromium-common \
+  --no-install-recommends && \
+  rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
@@ -8,9 +18,6 @@ RUN npm install
 COPY . .
 
 # create session directory
-RUN mkdir -p /app/session && chmod -R 777 /app/session
-
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV DATA_DIR=/app/session
+RUN mkdir -p /data && chmod -R 777 /data
 
 CMD ["node", "bot.js"]
