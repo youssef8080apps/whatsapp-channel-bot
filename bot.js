@@ -23,7 +23,6 @@ async function startBrowser() {
 
 browser = await puppeteer.launch({
   headless: true,
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
   args: [
     "--no-sandbox",
     "--disable-setuid-sandbox",
@@ -33,6 +32,7 @@ browser = await puppeteer.launch({
     "--window-size=1280,800"
   ]
 });
+
 
 
   page = await browser.newPage();
