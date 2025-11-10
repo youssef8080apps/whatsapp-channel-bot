@@ -24,22 +24,18 @@ async function startBrowser() {
 
   console.log("🚀 Starting Chrome...");
 
-  browser = await puppeteer.launch({
-    headless: true,
-    executablePath: CHROME_PATH,
-    args: [
-      "--no-sandbox",
-      "--disable-gpu",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--disable-software-rasterizer",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process",
-      "--window-size=1920,1080"
-    ]
-  });
+browser = await puppeteer.launch({
+  headless: false,
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--window-size=1280,800"
+  ]
+});
+
 
   page = await browser.newPage();
 
