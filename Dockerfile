@@ -9,8 +9,6 @@ COPY . .
 
 RUN mkdir -p /app/data
 
-ENV DATA_DIR=/app/data
-
 EXPOSE 3000
 
 CMD ["node", "bot.js"]
