@@ -1,16 +1,14 @@
 import express from "express";
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 import fs from "fs";
 import path from "path";
 
 const CHANNEL_URL = "https://web.whatsapp.com/channel/0029Vb1thBVEQIavlDI5Tw0a";
 
-const DATA_DIR = "/data";
+// ✅ استخدم نفس المكان اللي في Dockerfile
+const DATA_DIR = process.env.DATA_DIR || "/app/data";
 const SESSION_FILE = path.join(DATA_DIR, "session.json");
 const QR_FILE = path.join(DATA_DIR, "qr.png");
-
-// ✅ Chrome path on server
-const CHROME_PATH = "/usr/bin/google-chrome-stable";
 
 let browser;
 let page;
@@ -24,22 +22,21 @@ async function startBrowser() {
 
   console.log("🚀 Starting Chrome...");
 
-browser = await puppeteer.launch({
-  headless: false,
-  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--window-size=1280,800"
-  ]
-});
-
+  browser = await puppeteer.launch({
+    headless: false,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--window-size=1280,800"
+    ]
+  });
 
   page = await browser.newPage();
 
-  // ✅ Load saved session
+  // ✅ Load session (if exists)
   if (fs.existsSync(SESSION_FILE)) {
     const cookies = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));
     if (Array.isArray(cookies) && cookies.length) {
@@ -52,27 +49,27 @@ browser = await puppeteer.launch({
 
   await page.goto("https://web.whatsapp.com", { waitUntil: "networkidle2" });
 
-  // ✅ Capture QR if needed
+  // ✅ Capture QR
   try {
     await page.waitForSelector("canvas", { timeout: 15000 });
     const canvas = await page.$("canvas");
     if (canvas) {
       await canvas.screenshot({ path: QR_FILE });
-      console.log("✅ QR captured to /data/qr.png");
+      console.log("✅ QR captured to /app/data/qr.png");
     }
   } catch (_) {
-    console.log("✅ No QR needed, probably already logged in.");
+    console.log("✅ No QR needed, maybe already logged in.");
   }
 
-  // ✅ Wait for WhatsApp to be ready
+  // ✅ Wait for WA ready
   try {
     await page.waitForSelector("[data-testid='chat-list-search']", { timeout: 60000 });
     console.log("✅ WhatsApp Connected!");
   } catch {
-    console.log("⚠️ WhatsApp not fully ready yet.");
+    console.log("⚠️ WhatsApp not fully ready.");
   }
 
-  // ✅ Save session
+  // ✅ Save cookies
   const cookies = await page.cookies();
   fs.writeFileSync(SESSION_FILE, JSON.stringify(cookies, null, 2));
   console.log("✅ Session saved");
@@ -81,26 +78,21 @@ browser = await puppeteer.launch({
 async function sendToChannel(message) {
   if (!page) throw new Error("Browser not started");
 
-  console.log("📨 Navigating to channel...");
   await page.goto(CHANNEL_URL, { waitUntil: "networkidle2" });
 
-  // ✅ Find writing input (WhatsApp changes this a lot)
   const editorSel = "[contenteditable='true'][data-tab='10'], [contenteditable='true']";
-
   await page.waitForSelector(editorSel, { timeout: 20000 });
 
   await page.type(editorSel, message);
   await page.keyboard.press("Enter");
 
-  console.log("✅ Message sent to channel");
-
+  console.log("✅ Message sent");
   return true;
 }
 
 const app = express();
 app.use(express.json());
 
-// ✅ Return QR file
 app.get("/qr", (req, res) => {
   if (fs.existsSync(QR_FILE)) {
     res.setHeader("Content-Type", "image/png");
@@ -110,19 +102,17 @@ app.get("/qr", (req, res) => {
   }
 });
 
-// ✅ Session status
 app.get("/session", (req, res) => {
   res.json({ loggedIn: fs.existsSync(SESSION_FILE) });
 });
 
-// ✅ Send message to WhatsApp Channel
 app.post("/send", async (req, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: "text is required" });
 
     const ok = await sendToChannel(text);
-    if (ok) return res.json({ status: "sent" });
+    return res.json({ status: "sent" });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: e.message });
