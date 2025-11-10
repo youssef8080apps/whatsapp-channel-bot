@@ -7,9 +7,8 @@ RUN npm install
 
 COPY . .
 
-# Create data directory inside /app
+# Create data dir (no chmod!)
 RUN mkdir -p /app/data
-RUN chmod -R 777 /app/data
 
 ENV DATA_DIR=/app/data
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
