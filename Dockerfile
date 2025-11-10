@@ -1,4 +1,4 @@
-FROM node:18
+FROM ghcr.io/puppeteer/puppeteer:latest
 
 WORKDIR /app
 
@@ -7,6 +7,10 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 3000
+# create session directory
+RUN mkdir -p /app/session && chmod -R 777 /app/session
 
-CMD ["node", "index.js"]
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV DATA_DIR=/app/session
+
+CMD ["node", "bot.js"]
