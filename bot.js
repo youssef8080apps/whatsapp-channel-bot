@@ -22,6 +22,7 @@ async function startBrowser() {
   console.log("🚀 Launching Chrome (Headless)…");
 
 browser = await puppeteer.launch({
+  executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
   headless: true,
   args: [
     "--no-sandbox",
@@ -29,7 +30,25 @@ browser = await puppeteer.launch({
     "--disable-dev-shm-usage",
     "--disable-gpu",
     "--disable-software-rasterizer",
-    "--window-size=1280,800"
+    "--window-size=1280,800",
+    "--disable-features=IsolateOrigins,site-per-process",
+    "--disable-features=UserAgentClientHint",
+    "--disable-web-security",
+    "--disable-extensions",
+    "--no-first-run",
+    "--no-zygote",
+    "--ignore-certificate-errors",
+    "--allow-running-insecure-content",
+    "--disable-background-networking",
+    "--disable-default-apps",
+    "--disable-sync",
+    "--disable-domain-reliability",
+    "--disable-breakpad",
+    "--disable-ipc-flooding-protection",
+    "--disable-renderer-backgrounding",
+    "--force-color-profile=srgb",
+    "--use-gl=swiftshader",
+    "--enable-features=NetworkService,NetworkServiceInProcess"
   ]
 });
 
